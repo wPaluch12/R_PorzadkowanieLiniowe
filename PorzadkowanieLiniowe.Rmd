@@ -1,0 +1,244 @@
+---
+title: "Porzadkowanie Liniowe"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+piwo<-read.csv("C:\\Users\\wikip\\OneDrive\\Dokumenty\\IiE\\rok3\\piwo.csv", row.names = 1, sep = ";")
+piwo$cena <- (-1)*piwo$cena
+N = 5.5
+piwo$zawartosc.alk <- ifelse(piwo$zawartosc.alk < N, 
+                             -1/(piwo$zawartosc.alk-N-1),
+                             1/(piwo$zawartosc.alk-N+1))
+piwo_st <- data.frame(scale(piwo))
+```
+
+## Cel pracy
+
+<p>Praca zakłada stworzenie(przynajmniej trzema sposobami metod porządkowania liniowego) i analizę rankingów ze zbioru danych - piwo.csv. Rankingi następnie porównano i na podstawie jednego z nich podzielono obserwacje na grupy pod względem "jakości". Wszystkie badania zostały przeprowadzone w programie Rstudio.</p>
+<p>W analizie skorzystano z czterech metod porządkowania liniowego : metody standaryzowanych sum, metody sumy rang, metody Hellwiga, metody Topsis do stworzenia czterech rankingów na ich podstawie. </p>
+
+## Analiza zmiennych
+<ul>Zbiór danych zawiera następujące zmienne: 
+    <li> zawartość alkoholu - procentowa zawartość alkoholu w butelce piwa [%], 
+    <li> cena - cena jednostkowa za butelkę piwa [zł],
+    <li> dostępność - dostępność w wybranych krakowskich sklepach spożywczych, 
+    <li> znajomość - rozpoznawalność marki wśród ankietowanych, 
+    <li> preferencje - preferencje ankietowanych do danej marki piwa.
+</ul>
+<p> Wykres pudełkowy zmiennych </p>
+```{r }
+boxplot(piwo)
+
+```
+
+<p> Statystyki opisowe zmiennych: </p>
+
+```{r }
+summary(piwo)
+
+```
+Występują obserwacje odstające jednak patrząc na charakter danych i wartości obserwacji można przyjąć, że nie będą miały negatywnego wpływu na dalszy przebieg badań.
+
+
+
+<p>Stymulanty: dostępność, znajomość, preferencje<br>
+Destymulanta: cena<br>
+Nominanta: zawartość alkoholu (zał: idealne piwo ma 5.5%)</p>
+<p> Wszystkie zmienne zostały zamienione na stymulanty, w celu dalszych badań, a następnie zestandaryzowane(znormalizowane dla metody Topsis inną metodą), aby można było porównywać ich wartości.</p>
+
+
+
+
+## Tworzenie Rankingów
+
+<p> <b> Metoda standaryzowanych sum </b> </p>
+```{r rankingi, include=FALSE}
+standaryzacja_sum<-piwo_st
+zm_syntetyczna <- rowSums(piwo_st)/5
+standaryzacja_sum$st_sumy = (zm_syntetyczna - min(zm_syntetyczna))/max(zm_syntetyczna-min(zm_syntetyczna))
+standaryzacja_sum$ranking=rank(-standaryzacja_sum$st_sumy)
+
+kendall<-matrix(NA,nrow = 20,ncol = 4)
+colnames(kendall)<- c("standaryzacja","suma_rang","Hellwig","Topsis")
+row.names(kendall)<- row.names(piwo)
+
+kendall[,1]<-standaryzacja_sum$ranking
+standaryzacja_sum[order(-standaryzacja_sum$st_sumy),]
+
+zestawienie<-matrix(NA,nrow = 20,ncol = 4)
+colnames(zestawienie)<- c("standaryzacja", "suma_rang","Hellwig","Topsis")
+zestawienie[,1]<-row.names(standaryzacja_sum[order(-standaryzacja_sum$st_sumy),])
+#3Zbudować ranking z wykorzystaniem przynajmniej trzech wybranych metod porządkowania liniowego
+#metoda hellwiga
+hellwig<-piwo_st
+max1<-max(hellwig[,1])
+max2<-max(hellwig[,2])
+max3<-max(hellwig[,3])
+max4<-max(hellwig[,4])
+max5<-max(hellwig[,5])
+
+hellwig[,1]<-(hellwig[,1]-max1)^2
+hellwig[,2]<-(hellwig[,2]-max2)^2
+hellwig[,3]<-(hellwig[,3]-max3)^2
+hellwig[,4]<-(hellwig[,4]-max4)^2
+hellwig[,5]<-(hellwig[,5]-max5)^2
+hellwig$suma<-rowSums(hellwig)
+hellwig$suma<- sqrt(hellwig$suma)
+hellwig$WSK<- 1-(hellwig[,6]/ (mean(hellwig[,6])+2*sd(hellwig[,6])))
+hellwig$ranking<- rank(-hellwig$WSK)
+kendall[,2]<-hellwig$ranking
+
+
+zestawienie[,3]<-row.names(hellwig[order(-hellwig$WSK),])
+
+
+# Suma rang
+
+Suma_rang<-piwo
+for (i in 1:5) {
+  Suma_rang[,i]<-rank(-Suma_rang[,i], ties.method = "average")
+}
+Suma_rang$suma<- rowSums(Suma_rang)
+Suma_rang$ranking<-rank(Suma_rang$suma, ties.method = "random" )
+kendall[,3]<-Suma_rang$ranking
+zestawienie[,2]<-row.names(Suma_rang[order(Suma_rang$suma),])
+
+#Metoda TOPSIS
+piwo_Kw<-piwo^2
+mianownik<-sqrt(sum(piwo_Kw))
+piwo_norm<-piwo/mianownik
+
+max1<-max(piwo_norm[,1])
+max2<-max(piwo_norm[,2])
+max3<-max(piwo_norm[,3])
+max4<-max(piwo_norm[,4])
+max5<-max(piwo_norm[,5])
+
+
+min1<-min(piwo_norm[,1])
+min2<-min(piwo_norm[,2])
+min3<-min(piwo_norm[,3])
+min4<-min(piwo_norm[,4])
+min5<-min(piwo_norm[,5])
+
+piwo_norm_wz<-piwo_norm
+piwo_norm_awz<-piwo_norm
+
+piwo_norm_wz[,1]<-(piwo_norm[,1]-max1)^2
+piwo_norm_wz[,2]<-(piwo_norm[,2]-max2)^2
+piwo_norm_wz[,3]<-(piwo_norm[,3]-max3)^2
+piwo_norm_wz[,4]<-(piwo_norm[,4]-max4)^2
+piwo_norm_wz[,5]<-(piwo_norm[,5]-max5)^2
+piwo_norm$wz<-rowSums(piwo_norm_wz)
+piwo_norm$wz<- sqrt(piwo_norm$wz)
+
+
+piwo_norm_awz[,1]<-(piwo_norm[,1]-min1)^2
+piwo_norm_awz[,2]<-(piwo_norm[,2]-min2)^2
+piwo_norm_awz[,3]<-(piwo_norm[,3]-min3)^2
+piwo_norm_awz[,4]<-(piwo_norm[,4]-min4)^2
+piwo_norm_awz[,5]<-(piwo_norm[,5]-min5)^2
+piwo_norm$awz<-rowSums(piwo_norm_awz)
+piwo_norm$awz<- sqrt(piwo_norm$awz)
+
+piwo_norm$wsk<-piwo_norm$awz/(piwo_norm$wz+piwo_norm$awz)
+piwo_norm$ranking<-rank(-piwo_norm$wsk)
+
+kendall[,4]<-piwo_norm$ranking
+
+zestawienie[,4]<-row.names(piwo_norm[order(-piwo_norm$wsk),])
+
+
+
+```
+
+Zestawienie rankingów na podstawie czterech metod wygląda nasstępująco:
+```{r}
+
+zestawienie
+```
+
+
+<p> <b> Porównanie rankingów współczynnikiem korelacji Kendalla </b> </p>
+<p>tau Kendalla -  Współczynnik ten przyjmuje wartości z przedziału <-1, 1>. Wartość 1 oznacza pełną zgodność, wartość 0 brak zgodności uporządkowań, natomiast wartość -1 całkowitą ich przeciwstawność. Współczynnik Kendalla wskazuje, więc nie tylko siłę, lecz również kierunek zależności. Jest doskonałym narzędziem do opisu podobieństwa uporządkowań zbioru danych. </p>
+
+```{r kendall, include=FALSE}
+wartosci_kendall=1:6
+tabela_kor=matrix(nrow = 4,ncol = 4)
+for (i in 1:4) {
+  tabela_kor[i,i]=1
+}
+test=cor.test(kendall[,1],kendall[,2], method = "kendall")
+value<-data.frame(test$estimate)
+wartosci_kendall[1]=value[1,1]
+tabela_kor[1,2]=value[1,1]
+
+test=cor.test(kendall[,1],kendall[,3], method = "kendall")
+value<-data.frame(test$estimate)
+wartosci_kendall[2]=value[1,1]
+tabela_kor[1,3]=value[1,1]
+
+test=cor.test(kendall[,1],kendall[,4], method = "kendall")
+value<-data.frame(test$estimate)
+wartosci_kendall[3]=value[1,1]
+tabela_kor[1,4]=value[1,1]
+
+test=cor.test(kendall[,2],kendall[,3], method = "kendall")
+value<-data.frame(test$estimate)
+wartosci_kendall[4]=value[1,1]
+tabela_kor[2,3]=value[1,1]
+
+test=cor.test(kendall[,2],kendall[,4], method = "kendall")
+value<-data.frame(test$estimate)
+wartosci_kendall[5]=value[1,1]
+tabela_kor[2,4]=value[1,1]
+
+test=cor.test(kendall[,3],kendall[,4], method = "kendall")
+value<-data.frame(test$estimate)
+wartosci_kendall[6]=value[1,1]
+tabela_kor[3,4]=value[1,1]
+
+mean(wartosci_kendall)
+
+miary_dopasowania=1:4
+miary_dopasowania[1]=mean(c(wartosci_kendall[1:3]))
+miary_dopasowania[2]=mean(c(wartosci_kendall[1],wartosci_kendall[4],wartosci_kendall[5]))
+miary_dopasowania[3]=mean(c(wartosci_kendall[2],wartosci_kendall[4],wartosci_kendall[6]))
+miary_dopasowania[4]=mean(c(wartosci_kendall[3],wartosci_kendall[5],wartosci_kendall[6]))
+
+
+```
+Tabela korelacji (Kendall) pomiędzy rankingami
+```{r}
+miary_dopasowania
+```
+
+Podział na grupy
+Grupa 1 "Najlepsza"
+```{r}
+gr1=which(standaryzacja_sum$st_sumy>(mean(standaryzacja_sum$st_sumy)+sd(standaryzacja_sum$st_sumy)))
+standaryzacja_sum[gr1,]
+```
+
+Grupa 2
+```{r}
+gr2=which( (standaryzacja_sum[,6]>=(mean(standaryzacja_sum[,6])) & (standaryzacja_sum[,6]<(mean(standaryzacja_sum[,6])+sd(standaryzacja_sum[,6]))) ))
+standaryzacja_sum[gr2,]
+```
+
+Grupa 3
+```{r}
+gr3=which(standaryzacja_sum$st_sumy>=(mean(standaryzacja_sum$st_sumy)-sd(standaryzacja_sum$st_sumy))&(standaryzacja_sum$st_sumy<mean(standaryzacja_sum$st_sumy)) )
+standaryzacja_sum[gr3,]
+```
+
+Grupa 4
+```{r}
+gr4=which(standaryzacja_sum$st_sumy<(mean(standaryzacja_sum$st_sumy)-sd(standaryzacja_sum$st_sumy)))
+standaryzacja_sum[gr4,]
+```
+
+
+
+
